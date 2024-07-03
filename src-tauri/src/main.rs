@@ -23,18 +23,29 @@ fn play_col(
     col:usize
 ) -> Result<(), String> {
     let mut playfield = state.playfield.lock().unwrap();
-    playfield.play_col(col, state.human_player).map(|_| todo!("handle update events"))?;
-    playfield.auto_play(state.computer_player).map(|_| todo!("handle update events"))
+    playfield.play_col(col, state.human_player, Some(&window))?;
+    playfield.auto_play(state.computer_player, Some(&window))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn new_game(
+    state:tauri::State<'_, PlayfieldState>,
+    window: Window,
+) -> Result<(), String> {
+    let mut playfield = state.playfield.lock().unwrap();
+    playfield.reset(Some(&window))?;
+    Result::Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
         .manage(PlayfieldState {
-            playfield: Mutex::new(Game::new()),
+            playfield: Mutex::new(Game::new(8)),
             human_player: playfield::CellState::P1,
             computer_player: playfield::CellState::P2,
         })
-        .invoke_handler(tauri::generate_handler![play_col])
+        .invoke_handler(tauri::generate_handler![play_col, new_game])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
