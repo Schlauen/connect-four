@@ -32,9 +32,10 @@ fn play_col(
 fn new_game(
     state:tauri::State<'_, PlayfieldState>,
     window: Window,
+    level:u8
 ) -> Result<(), String> {
     let mut playfield = state.playfield.lock().unwrap();
-    playfield.reset(Some(&window))?;
+    playfield.reset(level, Some(&window))?;
     Result::Ok(())
 }
 

@@ -8,7 +8,10 @@ const StartSidebar = () => {
         <div id='sidebar'>
             <Button
                 name='new game'
-                onClick={() => () => changeOpenModal(OpenModal.NewGame)}
+                onClick={() => {
+                    changeOpenModal(OpenModal.NewGame);
+                    console.log('open modal');
+                }}
             />
         </div>
     )

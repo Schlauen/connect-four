@@ -198,7 +198,7 @@ impl Game {
         self.play_col(best_move, player, window)
     }
 
-    pub fn reset(&mut self, window:Option<&Window>) -> Result<(), String> {
+    pub fn reset(&mut self, level:u8, window:Option<&Window>) -> Result<(), String> {
         for h in self.col_heights.iter_mut() {
             *h = 0;
         }
@@ -210,6 +210,7 @@ impl Game {
 
         self.state = GameState::Blank;
         self.current_player = CellState::P1;
+        self.level = level;
 
         self.emit_update(
             UpdateEvent {

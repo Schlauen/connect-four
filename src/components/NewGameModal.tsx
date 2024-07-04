@@ -16,15 +16,19 @@ const NewGameModal = () => {
     <div className='modal-background'>
         <div className='modal-container'>
             <div className='title'>
-                <h1>configuration</h1>
+                <h1>New Game</h1>
             </div>
             <Range min={2} max={10} ref={rangeRef}/>
             <Button
                 name='start'
                 onClick={() => {
-                  newGame(onError, () => {
-                    changeAppState(AppState.Playing) 
-                  });
+                  newGame(
+                    rangeRef.current.getValue(),
+                    onError, 
+                    () => {
+                      changeAppState(AppState.Playing) 
+                    }
+                  );
                   changeOpenModal(OpenModal.None);
                 }}
             />

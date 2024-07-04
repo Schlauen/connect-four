@@ -39,11 +39,15 @@ export function playCol(
 }
 
 export function newGame(
+    level:number,
     onError: (msg:string) => void,
     onSuccess: () => void, 
 ) {
     invoke(
         'new_game',
+        {
+            level:level,
+        }
     ).then(onSuccess)
     .catch(onError);
 }

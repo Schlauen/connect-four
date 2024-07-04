@@ -6,7 +6,7 @@ interface Props {
 }
 
 const Range = forwardRef(({min, max} : Props, ref) => {
-    const [value, setValue] = useState(40);
+    const [value, setValue] = useState(max);
 
     const getValue = () => value;
     useImperativeHandle(ref, () => ({getValue}));
