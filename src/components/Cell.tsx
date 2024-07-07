@@ -5,6 +5,7 @@ export const State = {
     Blank: 0,
     P1: 1,
     P2: -1,
+    Winning: 2
 }
 
 interface Props {
@@ -16,7 +17,7 @@ interface Cell {
     state: number,
 }
 
-function getClassName(state:number) {
+function getClassName(state:number, winning:boolean) {
     let className:string;
     if (state == State.Blank) {
         className = 'cell blank';
@@ -28,8 +29,11 @@ function getClassName(state:number) {
         className = 'cell p2';
     }
     else {
-        console.log(state);
         className = '';
+    }
+
+    if (winning) {
+        className += ' win';
     }
 
     return className;
@@ -37,13 +41,16 @@ function getClassName(state:number) {
 
 const Cell = ({ row, col }: Props) => {
     const [state, setState] = useState(State.Blank);
+    const [winning, setWinning] = useState(false);
 
     useEffect(() => {
         const unlisten = onUpdateCell(row, col, event => {
             if (event.state != null) {
                 setState(event.state);
             }
-            console.log(event);
+            if (event.winning != null) {
+                setWinning(event.winning);
+            }
         });
     
         return () => {
@@ -55,7 +62,7 @@ const Cell = ({ row, col }: Props) => {
         <div 
             id={row  + "," + col }
             key={row + "," + col }
-            className={getClassName(state)}
+            className={getClassName(state, winning)}
         />
     );
 };

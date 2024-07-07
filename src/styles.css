@@ -5,6 +5,7 @@
   --font-color: #32353b;
   --p1-color: #ff4949;
   --p2-color: #fcff49;
+  --win-color: #ffffff;
 }
 
 body {
@@ -124,6 +125,30 @@ body {
 
 .cell.p2 {
   background-color: var(--p2-color);
+}
+
+.cell.win {
+  filter: drop-shadow(0 0 10px var(--win-color));
+}
+
+.bop {
+  display: grid;
+  grid-template-areas: 'p1 p2';
+  height: 10px;
+}
+
+#bop-p1 {
+  background-color: var(--p1-color);
+  grid-area: p1;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+
+#bop-p2 {
+  background-color: var(--p2-color);
+  grid-area: p2;
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
 }
 
 .menu-element.range-container {

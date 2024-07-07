@@ -19,14 +19,18 @@ const Playfield = () => {
                         setMessage('draw!');
                     }
                     else if (event.winner == State.P1) {
-                        setMessage('P1 wins!');
+                        setMessage('Player 1 wins!');
                     }
                     else if (event.winner == State.P2) {
-                        setMessage('P2 wins!');
+                        setMessage('Player 2 wins!');
                     }
                 }
-                
-                setMessage('solved!')
+            }
+            else if (event.state == GameState.Calculating) {             
+                setMessage('thinking...');
+            }
+            else {
+                setMessage('');
             }
         });
     

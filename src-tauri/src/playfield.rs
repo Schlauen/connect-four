@@ -3,7 +3,7 @@ use std::{borrow::BorrowMut, collections::{VecDeque}};
 use array2d::Array2D;
 use serde::{Serialize, Deserialize};
 use tauri::Window;
-use crate::engine::{self, EvaluationResult, TOTAL_FIELDS, WIDTH};
+use crate::engine::{self, Eval, EvaluationResult, TOTAL_FIELDS, WIDTH};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[repr(i8)]
@@ -18,12 +18,14 @@ pub struct CellUpdateEvent {
     pub row: u8,
     pub col: u8,
     state: i8,
+    winning: bool,
 }
 
 #[derive(serde::Serialize, Clone)]
 pub struct UpdateEvent {
     state: i8,
     winner: Option<i8>,
+    balance_of_power:Option<f32>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -31,35 +33,11 @@ pub struct Cell {
     row:usize,
     col:usize,
     state: CellState,
+    winning:bool,
 }
 
 impl Cell {
-    fn set_state(&mut self, state:CellState, window:Option<&Window>) -> Result<bool, String> {
-        if state == self.state {
-            return Ok(false);
-        }
-
-        match self.state {
-            CellState::P1 => match state {
-                CellState::Blank => self.state = state,
-                CellState::P2 => {
-                    return Err("Cell is already set".into());
-                }
-                CellState::P1 => {}
-            }
-            CellState::P2 => match state {
-                CellState::Blank => self.state = state,
-                CellState::P1 => {
-                    return Err("Cell is already set".into());
-                }
-                CellState::P2 => {}
-            }
-            CellState::Blank =>  match state {
-                CellState::Blank => {},
-                CellState::P1 | CellState::P2 => self.state = state,
-            }
-        }
-        
+    fn emit_update(&self, window:Option<&Window>) {
         window.map(|w| {
             w.emit(
                 &format!("updateCell-{}-{}", self.row, self.col), 
@@ -67,10 +45,51 @@ impl Cell {
                     row: self.row as u8,
                     col: self.col as u8,
                     state: self.state as i8,
+                    winning: self.winning
                 }
             ).unwrap()
         });
-        Ok(true)
+    }
+
+    fn reset(&mut self, window:Option<&Window>) {
+        self.state = CellState::Blank;
+        self.winning = false;
+        self.emit_update(window);
+    }
+
+    fn set_state(&mut self, state:CellState, window:Option<&Window>) -> Result<bool, String> {
+        if state == self.state {
+            return Ok(false);
+        }
+
+        let result = match self.state {
+            CellState::P1 => match state {
+                CellState::Blank => {
+                    self.state = state;
+                    Result::<bool, String>::Ok(true)
+                },
+                CellState::P2 => Err("Cell is already set".into()),
+                CellState::P1 => Ok(false)
+            }
+            CellState::P2 => match state {
+                CellState::Blank => {
+                    self.state = state;
+                    Ok(true)
+                },
+                CellState::P1 => Err("Cell is already set".into()),
+                CellState::P2 => Ok(false)
+            }
+            CellState::Blank =>  match state {
+                CellState::Blank => Ok(false),
+                CellState::P1 | CellState::P2 => {
+                    self.state = state;
+                    Ok(true)
+                },
+            }
+        }?;
+        
+        self.emit_update(window);
+        Ok(result)
     }
 }
 
@@ -79,6 +98,7 @@ pub enum GameState {
     Blank,
     Running,
     Finished,
+    Calculating,
 }
 
 pub struct Game {
@@ -97,7 +117,7 @@ impl Game {
             let col = counter % WIDTH;
             let row = counter / WIDTH;
             counter += 1;
-            Cell { row: row, col: col, state: CellState::Blank }
+            Cell { row: row, col: col, state: CellState::Blank, winning: false }
         };
         Game {
             cells: Array2D::filled_by_row_major(increment, engine::HEIGHT, engine::WIDTH),
@@ -137,40 +157,55 @@ impl Game {
                     )
                 })
                 .unwrap_or(EvaluationResult {
-                    score: 0.,
-                    finished: false,
-                    winner: None
+                    eval: Eval {
+                        score: 0.,
+                        finished: false,
+                        winner: None
+                    },
+                    winning_cells: Option::None
                 })
     }
 
     pub fn play_col(&mut self, col:usize, player:CellState, window:Option<&Window>) -> Result<(), String> {
-        match self.state {
-            GameState::Blank => self.state = GameState::Running,
-            GameState::Finished => return Err("Already solved".into()),
-            GameState::Running => {}        
-        };
+         match self.state {
+            GameState::Blank => {
+                self.state = GameState::Running;
+                Ok::<(),String>(())
+            },
+            GameState::Finished => Err("Already solved".into()),
+            GameState::Calculating => Err("calculating".into()),
+            GameState::Running => Ok(())
+        }?;
         self.current_player = player;        
         let row = self.col_heights[col];
         self.col_heights[col] = row + 1;
         self.move_history.push_back(col);
 
-        println!("Player {} plays col {}", player as i8, col);
-
         match self.cells[(row, col)].set_state(player, window)? {
             true => {
-                let eval = self.evaluate();
+                let result = self.evaluate();
                 
-                if eval.finished {
+                if result.eval.finished {
                     self.state = GameState::Finished;
                 }
                 
                 self.emit_update(
                     UpdateEvent {
                         state: self.state as i8,
-                        winner: eval.winner,
+                        winner: result.eval.winner,
+                        balance_of_power: Option::Some(result.eval.score)
                     }, 
                     window
                 );
+
+                result.winning_cells.map(|winning_cells| {
+                    for coords in winning_cells {
+                        let cell = self.cells[coords].borrow_mut();
+                        cell.winning = true;
+                        cell.emit_update(window);
+                    }
+                });
+
                 Ok(())
             }
             false => {
@@ -191,8 +226,19 @@ impl Game {
         match self.state {
             GameState::Blank => self.state = GameState::Running,
             GameState::Finished => return Err("Already solved".into()),
+            GameState::Calculating => return Err("calculating".into()),
             GameState::Running => {}        
         };
+
+        self.emit_update(
+            UpdateEvent {
+                state: GameState::Calculating as i8,
+                winner: None,
+                balance_of_power: None,
+            },
+            window
+        );
+        
         
         let best_move = self.get_best_move(player)?;
         self.play_col(best_move, player, window)
@@ -205,7 +251,7 @@ impl Game {
 
         for (row, col) in (0..engine::HEIGHT).flat_map(|r| (0..engine::WIDTH).map(move |c| (r,c))) {
             let cell = self.cells[(row, col)].borrow_mut();
-            let _ = cell.set_state(CellState::Blank, window)?;
+            cell.reset(window);
         }
 
         self.state = GameState::Blank;
@@ -215,7 +261,8 @@ impl Game {
         self.emit_update(
             UpdateEvent {
                 state: GameState::Blank as i8,
-                winner: Option::None
+                winner: Option::None,
+                balance_of_power: Some(0.)
             }, 
             window
         );
@@ -277,7 +324,7 @@ mod tests {
         g.play_col(4, x, None).unwrap();
 
         let result = g.evaluate();
-        assert_eq!(result.winner.unwrap(), x as i8);
+        assert_eq!(result.eval.winner.unwrap(), x as i8);
         
         //g.play_col(4, player, window)
         //g.play_col(1, x, None).unwrap();    

@@ -5,12 +5,13 @@ export interface CellUpdateEvent {
     row: number,
     col: number,
     state: number,
+    winning: boolean,
 }
 
 export interface GameUpdateEvent {
     state: number,
     winner: number,
-    cell_updates: [CellUpdateEvent],
+    balance_of_power: number,
 }
 
 export const CellState = {
@@ -23,6 +24,7 @@ export const GameState = {
     Blank: 0,
     Running: 1,
     Finished: 2,
+    Calculating: 3,
 }
 
 export function playCol(

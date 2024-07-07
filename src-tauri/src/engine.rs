@@ -98,22 +98,23 @@ fn check(val:i8, values:&Vec<*mut i8>) -> u8 {
     best_score
 }
 
-fn is_full(col_heights:[usize; WIDTH]) -> bool {
-    col_heights.iter().map(|x| *x == HEIGHT).fold(true, |a, b| a && b)
-}
-
 #[derive(Clone)]
-pub struct EvaluationResult {
+pub struct Eval {
     pub score: f32,
     pub finished: bool,
     pub winner: Option<i8>,
+}
+
+pub struct EvaluationResult {
+    pub eval: Eval,
+    pub winning_cells: Option<Vec<(usize, usize)>>,
 }
 
 struct ConnectFour {
     current_player: i8,
     values: Array2D<i8>,
     col_heights: [usize; WIDTH],
-    evaluation_result: Option<EvaluationResult>,
+    evaluation_result: Option<Eval>,
     set_fields: usize,
     last_action: Option<usize>,
 
@@ -125,7 +126,7 @@ struct ConnectFour {
 }
 
 impl ConnectFour {
-    fn calculate_state(&self, col:usize) -> EvaluationResult {
+    fn calculate_state(&self, col:usize) -> Eval {
         let row = self.col_heights[col] - 1;
         let val = self.values[(row, col)];
         let mut total_score = 0.;
@@ -136,7 +137,7 @@ impl ConnectFour {
                 len += 1;
             }
             if score > 3 {
-                return EvaluationResult {
+                return Eval {
                     score: MAX_SCORE * val as f32,
                     finished: true,
                     winner: Some(val)
@@ -150,20 +151,25 @@ impl ConnectFour {
             total_score -= (len - 1) as f32;
         }
         total_score *= val as f32;
-        EvaluationResult {
+        Eval {
             score: total_score,
             finished: self.set_fields >= TOTAL_FIELDS,
             winner: None
         }
     }
 
-    fn evaluate_action(&mut self, action:usize) -> EvaluationResult {
+    fn eval(&mut self) -> Eval {
         match &self.evaluation_result {
             Some(res) => res.clone(),
             None => {
-                let res = self.calculate_state(action);
-                self.evaluation_result = Option::Some(res.clone());
-                res
+                self.last_action.map_or(
+                    Eval {
+                        score: 0.,
+                        winner: None,
+                        finished: false,
+                    },
+                    |a| self.calculate_state(a)
+                )
             }
         }
     }
@@ -171,7 +177,7 @@ impl ConnectFour {
 
 impl Environment<usize> for ConnectFour {
     fn evaluate(&mut self) -> f32 {
-        self.last_action.map_or(0.,|a| self.evaluate_action(a).score)
+        self.eval().score
     }
  
     fn apply(&mut self, action:&usize) {        
@@ -201,7 +207,7 @@ impl Environment<usize> for ConnectFour {
     }
  
     fn is_finished(&mut self) -> bool {
-        self.last_action.map_or(false,|a| self.evaluate_action(a).finished)
+        self.eval().finished
     }
     
     fn actions(&self) -> Vec<usize> {
@@ -257,16 +263,41 @@ pub fn get_best_move(values: Option<Array2D<i8>>, current_player:i8, level:u8) -
     }
 }
 
-/// Returns Option::None when not finished, Option::Some(0) if the game is a draw, 
-/// or Option::Some(1) if maximizer has won the game or Option::Some(-1) if minimizer won.
 pub fn evaluate_action(state:(Array2D<i8>, i8), action:usize) -> EvaluationResult {
     let (values, current_player) = state;
     let mut g = ConnectFour::new(
         Option::Some(values),
         current_player
     );
-    g.evaluate_action(action);
-    g.evaluation_result.expect("not evaluated")
+    g.last_action = Option::Some(action);
+    let result = g.eval();
+
+    let winning_cells = result.winner.map(|val| {
+        let check_ = |tup_seq:Vec<(usize,usize)>| {
+            let mut seq:Vec<(usize,usize)> = Vec::new();
+            for rc in tup_seq {
+                if g.values[rc] == val {
+                    seq.push(rc);
+                } else {
+                    seq.clear();
+                }
+    
+                if seq.len() == 4 {
+                    return Option::Some(seq);
+                }
+            }
+            Option::None
+        };
+        let row = g.col_heights[action] - 1;
+        check_(rdiag_tup_seq!(row, action))
+        .or_else(|| check_(ldiag_tup_seq!(row, action)))
+        .or_else(|| check_(h_tup_seq!(row, action)))
+        .or_else(|| check_(v_tup_seq!(row, action))).expect("no sequence of four found")
+    });
+    EvaluationResult {
+        eval: result,
+        winning_cells
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,7 @@
-import { AppState, OpenModal, useStore } from '../store';
+import { OpenModal, useStore } from '../store';
+import BalanceOfPower from './BalanceOfPower';
 import Button from './Button';
+import LevelLabel from './LevelLabel';
 
 const StartSidebar = () => {
     const changeOpenModal = useStore(state => state.changeOpenModal);
@@ -8,11 +10,10 @@ const StartSidebar = () => {
         <div id='sidebar'>
             <Button
                 name='new game'
-                onClick={() => {
-                    changeOpenModal(OpenModal.NewGame);
-                    console.log('open modal');
-                }}
+                onClick={() => changeOpenModal(OpenModal.NewGame)}
             />
+            <LevelLabel/>
+            <BalanceOfPower/>
         </div>
     )
 }

@@ -23,6 +23,8 @@ type GameState = {
     changeAppState: (newAppState:number) => void;
     openModal: number;
     changeOpenModal: (newOpenModal:number) => void;
+    level: number;
+    setLevel: (newLevel:number) => void;
 }
 
 export const useStore = create<GameState>((set) => ({
@@ -41,4 +43,6 @@ export const useStore = create<GameState>((set) => ({
         }
         return {openModal: newOpenModal}
     }),
+    level: 5,
+    setLevel: newLevel => set({level:newLevel}),
 }));

@@ -3,14 +3,15 @@ import "./Modal.css";
 import { AppState, OpenModal, useStore } from '../store';
 import { newGame } from '../Interface';
 import Button from './Button';
-import Range from './Range';
+import LevelRange from './LevelRange';
+import LevelLabel from './LevelLabel';
 
 const NewGameModal = () => {
-  const rangeRef = useRef<any>(null);
   const changeOpenModal = useStore(state => state.changeOpenModal);
   const changeAppState = useStore(state => state.changeAppState);
 
   const onError = useStore(state => state.changeMessage);
+  const level = useStore(state => state.level);
 
   return (
     <div className='modal-background'>
@@ -18,12 +19,13 @@ const NewGameModal = () => {
             <div className='title'>
                 <h1>New Game</h1>
             </div>
-            <Range min={2} max={10} ref={rangeRef}/>
+            <LevelRange min={2} max={10}/>
+            <LevelLabel/>
             <Button
                 name='start'
                 onClick={() => {
                   newGame(
-                    rangeRef.current.getValue(),
+                    level,
                     onError, 
                     () => {
                       changeAppState(AppState.Playing) 
