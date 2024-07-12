@@ -6,7 +6,7 @@ mod minimax;
 mod playfield;
 
 use std::sync::Mutex;
-use playfield::Game;
+use playfield::{Game, GameState};
 use tauri::Window;
 
 // Mutex for interior mutability
@@ -23,19 +23,28 @@ fn play_col(
     col:usize
 ) -> Result<(), String> {
     let mut playfield = state.playfield.lock().unwrap();
-    playfield.play_col(col, state.human_player, Some(&window))?;
-    playfield.auto_play(state.computer_player, Some(&window))?;
-    Ok(())
+    let game_state = playfield.play_col(col, state.human_player, Some(&window))?;
+
+    match game_state {
+        GameState::Finished => Ok(()),
+        GameState::Blank | GameState::Calculating => Err("Cannot be blank or calculating".into()),
+        GameState::Running => playfield.auto_play(state.computer_player, Some(&window))
+    }
 }
 
 #[tauri::command]
 fn new_game(
     state:tauri::State<'_, PlayfieldState>,
     window: Window,
-    level:u8
+    level:u8,
+    starting_player:i8,
 ) -> Result<(), String> {
     let mut playfield = state.playfield.lock().unwrap();
     playfield.reset(level, Some(&window))?;
+
+    if starting_player == state.computer_player as i8 {
+        return playfield.auto_play(state.computer_player, Some(&window))
+    }
     Result::Ok(())
 }
 

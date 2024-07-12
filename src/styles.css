@@ -161,6 +161,34 @@ body {
   border-radius: 3px;
 }
 
+.menu-element.checkbox-container {
+  display: grid;
+  grid-template-columns: auto min-content;
+  align-items: center;
+}
+
+.custom-checkbox {
+  display:flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--field-color);
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  margin: 0;
+  &:hover {
+    filter: drop-shadow(0 0 10px var(--hover-color));
+  };
+  border-radius: 3px;
+}
+
+.tick {
+  background: var(--background-color);
+  width: 25px;
+  height: 25px;
+  border-radius: 2px;
+}
+
 .slider {
   -webkit-appearance: none;
   width: 100%;

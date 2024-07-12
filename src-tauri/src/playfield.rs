@@ -3,7 +3,7 @@ use std::{borrow::BorrowMut, collections::{VecDeque}};
 use array2d::Array2D;
 use serde::{Serialize, Deserialize};
 use tauri::Window;
-use crate::engine::{self, Eval, EvaluationResult, TOTAL_FIELDS, WIDTH};
+use crate::{engine::{self, ActionEvaluation, Eval, HEIGHT, TOTAL_FIELDS, WIDTH}, minimax::StateEvaluation};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[repr(i8)]
@@ -14,19 +14,21 @@ pub enum CellState {
 }
 
 #[derive(serde::Serialize, Clone)]
-pub struct CellUpdateEvent {
-    pub row: u8,
-    pub col: u8,
-    state: i8,
-    winning: bool,
-}
-
-#[derive(serde::Serialize, Clone)]
-pub struct UpdateEvent {
-    state: i8,
-    winner: Option<i8>,
-    balance_of_power:Option<f32>,
-}
+pub enum Update {
+    Cell {
+        row: u8,
+        col: u8,
+        state: i8,
+        winning: bool,
+    },
+    State {
+        state: i8,
+        winner: Option<i8>,
+    },
+    Balance {
+        value: f32,
+    }
+} 
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Cell {
@@ -36,19 +38,26 @@ pub struct Cell {
     winning:bool,
 }
 
+fn emit_update(event:Update, window:&Window) -> Result<(), String> {
+    let s = match event {
+        Update::Balance { value: _ } => "updateBalance".to_owned(),
+        Update::Cell { row, col, state: _, winning: _ } => format!("updateCell-{}-{}", row, col),
+        Update::State { state: _, winner:_ } => "updateState".to_owned()
+    };
+    window.emit(&s, event).map_err(|e| e.to_string())
+}
+
 impl Cell {
     fn emit_update(&self, window:Option<&Window>) {
-        window.map(|w| {
-            w.emit(
-                &format!("updateCell-{}-{}", self.row, self.col), 
-                CellUpdateEvent {
-                    row: self.row as u8,
-                    col: self.col as u8,
-                    state: self.state as i8,
-                    winning: self.winning
-                }
-            ).unwrap()
-        });
+        window.map(|w| emit_update( 
+            Update::Cell { 
+                row: self.row as u8,
+                col: self.col as u8,
+                state: self.state as i8,
+                winning: self.winning 
+            },
+            w
+        ));
     }
 
     fn reset(&mut self, window:Option<&Window>) {
@@ -144,19 +153,10 @@ impl Game {
         )
     }
 
-    fn emit_update(&self, event:UpdateEvent, window:Option<&Window>) {
-        window.map(|w|w.emit("updateGame", event).unwrap());
-    }
-
-    fn evaluate(&self) -> EvaluationResult {
+    fn evaluate(&self) -> ActionEvaluation {
         self.move_history.back()
-                .map(|col| {
-                    engine::evaluate_action(
-                        (self.map_values(), self.current_player as i8),
-                        *col
-                    )
-                })
-                .unwrap_or(EvaluationResult {
+                .map(|col| engine::evaluate_action(Some(self.map_values()), self.current_player as i8,*col))
+                .unwrap_or(ActionEvaluation {
                     eval: Eval {
                         score: 0.,
                         finished: false,
@@ -166,18 +166,23 @@ impl Game {
                 })
     }
 
-    pub fn play_col(&mut self, col:usize, player:CellState, window:Option<&Window>) -> Result<(), String> {
-         match self.state {
+    pub fn play_col(&mut self, col:usize, player:CellState, window:Option<&Window>) -> Result<GameState, String> {
+        match self.state {
             GameState::Blank => {
                 self.state = GameState::Running;
                 Ok::<(),String>(())
             },
-            GameState::Finished => Err("Already solved".into()),
+            GameState::Finished => Err("Already finished".into()),
             GameState::Calculating => Err("calculating".into()),
             GameState::Running => Ok(())
         }?;
         self.current_player = player;        
         let row = self.col_heights[col];
+
+        if row >= HEIGHT {
+            return Err("column already full".into());
+        }
+
         self.col_heights[col] = row + 1;
         self.move_history.push_back(col);
 
@@ -189,14 +194,10 @@ impl Game {
                     self.state = GameState::Finished;
                 }
                 
-                self.emit_update(
-                    UpdateEvent {
-                        state: self.state as i8,
-                        winner: result.eval.winner,
-                        balance_of_power: Option::Some(result.eval.score)
-                    }, 
-                    window
-                );
+                window.map(|w| emit_update(Update::State { 
+                    state: self.state as i8,
+                    winner: result.eval.winner
+                }, w));
 
                 result.winning_cells.map(|winning_cells| {
                     for coords in winning_cells {
@@ -206,20 +207,12 @@ impl Game {
                     }
                 });
 
-                Ok(())
+                Ok(self.state)
             }
             false => {
                 Err("Cell not changed".into())
             }
         }
-    }
-
-    fn get_best_move(&self, player:CellState) -> Result<usize, String> {
-        engine::get_best_move(
-            Option::Some(self.map_values()),
-            player as i8,
-            self.level
-        )
     }
 
     pub fn auto_play(&mut self, player:CellState, window:Option<&Window>) -> Result<(), String> {
@@ -230,18 +223,18 @@ impl Game {
             GameState::Running => {}        
         };
 
-        self.emit_update(
-            UpdateEvent {
-                state: GameState::Calculating as i8,
-                winner: None,
-                balance_of_power: None,
-            },
-            window
-        );
+        window.map(|w| emit_update(Update::State { 
+            state: GameState::Calculating as i8,
+            winner: None
+        }, w));
         
         
-        let best_move = self.get_best_move(player)?;
-        self.play_col(best_move, player, window)
+        let res = engine::evaluate_state(Some(self.map_values()), player as i8, self.level)?;
+        let best_action = res.best_action.ok_or("no result")?;
+        self.play_col(best_action, player, window)?;
+
+        window.map(|w| emit_update(Update::Balance { value: res.score }, w));
+        Ok(())
     }
 
     pub fn reset(&mut self, level:u8, window:Option<&Window>) -> Result<(), String> {
@@ -258,21 +251,26 @@ impl Game {
         self.current_player = CellState::P1;
         self.level = level;
 
-        self.emit_update(
-            UpdateEvent {
-                state: GameState::Blank as i8,
-                winner: Option::None,
-                balance_of_power: Some(0.)
-            }, 
-            window
-        );
-        Ok(())
+        window.map_or(Ok(()), |w| emit_update(Update::State { 
+            state: self.state as i8,
+            winner: None,
+        }, w))?;
+
+        window.map_or(Ok(()), |w| emit_update(Update::Balance { value: 0. }, w))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn evaluate_state(game:&Game, player:CellState) -> Result<StateEvaluation<usize>, String> {
+        engine::evaluate_state(
+            Option::Some(game.map_values()),
+            player as i8,
+            game.level
+        )
+    }
 
     #[test]
     fn test_enum() {
@@ -289,8 +287,8 @@ mod tests {
         g.play_col(3, o, None).unwrap();
         g.play_col(6, x, None).unwrap();
         
-        assert_eq!(g.get_best_move(o).unwrap(), 5);
-        assert_eq!(g.get_best_move(x).unwrap(), 5);
+        assert_eq!(evaluate_state(&g, o).map(|r| r.best_action).unwrap().unwrap(), 5);
+        assert_eq!(evaluate_state(&g, x).map(|r| r.best_action).unwrap().unwrap(), 5);
 
         g.play_col(5, o, None).unwrap();
         g.play_col(5, x, None).unwrap();
@@ -301,8 +299,8 @@ mod tests {
         g.play_col(3, o, None).unwrap();
         g.play_col(0, x, None).unwrap();
 
-        assert_eq!(g.get_best_move(o).unwrap(), 4);
-        assert_eq!(g.get_best_move(x).unwrap(), 4);        
+        assert_eq!(evaluate_state(&g, o).map(|r| r.best_action).unwrap().unwrap(), 4);
+        assert_eq!(evaluate_state(&g, x).map(|r| r.best_action).unwrap().unwrap(), 4);        
     }
 
     #[test]
@@ -318,8 +316,8 @@ mod tests {
         g.play_col(1, x, None).unwrap();
         g.play_col(0, o, None).unwrap();
 
-        assert_eq!(g.get_best_move(x).unwrap(), 4);
-        assert_eq!(g.get_best_move(o).unwrap(), 4);
+        assert_eq!(evaluate_state(&g, x).map(|r| r.best_action).unwrap().unwrap(), 4);
+        assert_eq!(evaluate_state(&g, o).map(|r| r.best_action).unwrap().unwrap(), 4);
 
         g.play_col(4, x, None).unwrap();
 
@@ -338,10 +336,10 @@ mod tests {
         g.play_col(6, o, None).unwrap();
         g.play_col(2, x, None).unwrap();
 
-        assert_eq!(g.get_best_move(o).unwrap(), 0);
+        assert_eq!(evaluate_state(&g, o).map(|r| r.best_action).unwrap().unwrap(), 0);
 
         g.play_col(6, o, None).unwrap();
 
-        assert_eq!(g.get_best_move(x).unwrap(), 3);        
+        assert_eq!(evaluate_state(&g, x).map(|r| r.best_action).unwrap().unwrap(), 3);        
     }
 }

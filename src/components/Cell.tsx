@@ -45,11 +45,11 @@ const Cell = ({ row, col }: Props) => {
 
     useEffect(() => {
         const unlisten = onUpdateCell(row, col, event => {
-            if (event.state != null) {
-                setState(event.state);
+            if (event.Cell.state != null) {
+                setState(event.Cell.state);
             }
-            if (event.winning != null) {
-                setWinning(event.winning);
+            if (event.Cell.winning != null) {
+                setWinning(event.Cell.winning);
             }
         });
     

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { AppState, WIDTH, useStore } from '../store';
 import Column from './Column';
-import { GameState, onUpdateGame } from '../Interface';
+import { GameState, onUpdateState } from '../Interface';
 import { State } from './Cell';
 
 const Playfield = () => {    
@@ -9,24 +9,22 @@ const Playfield = () => {
     const setMessage = useStore(state => state.changeMessage);
 
     useEffect(() => {
-        const unlisten = onUpdateGame(event => {
-            console.log(event);
-
-            if (event.state == GameState.Finished) {
+        const unlisten = onUpdateState(event => {
+            if (event.State.state == GameState.Finished) {
                 changeAppState(AppState.Finished);                
-                if (event.winner != null) {
-                    if (event.winner == State.Blank) {
+                if (event.State.winner != null) {
+                    if (event.State.winner == State.Blank) {
                         setMessage('draw!');
                     }
-                    else if (event.winner == State.P1) {
+                    else if (event.State.winner == State.P1) {
                         setMessage('Player 1 wins!');
                     }
-                    else if (event.winner == State.P2) {
+                    else if (event.State.winner == State.P2) {
                         setMessage('Player 2 wins!');
                     }
                 }
             }
-            else if (event.state == GameState.Calculating) {             
+            else if (event.State.state == GameState.Calculating) {             
                 setMessage('thinking...');
             }
             else {

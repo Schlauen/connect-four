@@ -1,17 +1,26 @@
 import { invoke } from "@tauri-apps/api";
 import { UnlistenFn, listen } from "@tauri-apps/api/event";
 
-export interface CellUpdateEvent {
+export interface Update {
+    Cell: CellUpdate,
+    State: StateUpdate,
+    Balance: BalanceUpdate,
+}
+
+export interface CellUpdate {
     row: number,
     col: number,
     state: number,
     winning: boolean,
 }
 
-export interface GameUpdateEvent {
+export interface StateUpdate {
     state: number,
     winner: number,
-    balance_of_power: number,
+}
+
+export interface BalanceUpdate {
+    value: number,
 }
 
 export const CellState = {
@@ -42,6 +51,7 @@ export function playCol(
 
 export function newGame(
     level:number,
+    startingPlayer:number,
     onError: (msg:string) => void,
     onSuccess: () => void, 
 ) {
@@ -49,16 +59,21 @@ export function newGame(
         'new_game',
         {
             level:level,
+            startingPlayer:startingPlayer
         }
     ).then(onSuccess)
     .catch(onError);
 }
 
 
-export function onUpdateCell(row:number, col:number, onTrigger: (event:CellUpdateEvent) => void): Promise<UnlistenFn> {
-    return listen<CellUpdateEvent>('updateCell-' + row + '-' + col, event => onTrigger(event.payload));
+export function onUpdateCell(row:number, col:number, onTrigger: (event:Update) => void): Promise<UnlistenFn> {
+    return listen<Update>('updateCell-' + row + '-' + col, event => onTrigger(event.payload));
 }
 
-export function onUpdateGame(onTrigger: (event:GameUpdateEvent) => void): Promise<UnlistenFn> {
-    return listen<GameUpdateEvent>('updateGame', event => onTrigger(event.payload));
+export function onUpdateState(onTrigger: (event:Update) => void): Promise<UnlistenFn> {
+    return listen<Update>('updateState', event => onTrigger(event.payload));
+}
+
+export function onUpdateBalance(onTrigger: (event:Update) => void): Promise<UnlistenFn> {
+    return listen<Update>('updateBalance', event => onTrigger(event.payload));
 }

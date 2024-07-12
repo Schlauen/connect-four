@@ -1,10 +1,11 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import "./Modal.css";
 import { AppState, OpenModal, useStore } from '../store';
-import { newGame } from '../Interface';
+import { CellState, newGame } from '../Interface';
 import Button from './Button';
 import LevelRange from './LevelRange';
 import LevelLabel from './LevelLabel';
+import Checkbox from './Checkbox';
 
 const NewGameModal = () => {
   const changeOpenModal = useStore(state => state.changeOpenModal);
@@ -12,6 +13,7 @@ const NewGameModal = () => {
 
   const onError = useStore(state => state.changeMessage);
   const level = useStore(state => state.level);
+  const [computerStarts, setComputerStarts] = useState(false);
 
   return (
     <div className='modal-background'>
@@ -21,11 +23,16 @@ const NewGameModal = () => {
             </div>
             <LevelRange min={2} max={10}/>
             <LevelLabel/>
+            <Checkbox 
+                name='Computer starts'
+                onStateToggle={setComputerStarts}
+            />
             <Button
                 name='start'
                 onClick={() => {
                   newGame(
                     level,
+                    computerStarts ? CellState.P2 : CellState.P1,
                     onError, 
                     () => {
                       changeAppState(AppState.Playing) 

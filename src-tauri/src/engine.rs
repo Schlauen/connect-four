@@ -2,7 +2,7 @@ use std::{cmp::{max, min}, collections::{HashMap, VecDeque}, sync::RwLock, vec};
 use array2d::Array2D;
 use minimax::{Environment, minimize, maximize, MIN_SCORE, MAX_SCORE};
 
-use crate::minimax;
+use crate::minimax::{self, StateEvaluation};
 
 pub const WIDTH:usize = 7;
 pub const HEIGHT:usize = 6;
@@ -10,6 +10,8 @@ pub const TOTAL_FIELDS:usize = WIDTH * HEIGHT;
 
 const P1:i8 = 1;
 const P2:i8 = -1;
+
+const FIELDS:[usize;WIDTH] = [3,2,4,1,5,0,6];
 
 // static mut STATES:RwLock<HashMap<i32, i8>> = RwLock::new(HashMap::new());
 
@@ -105,7 +107,7 @@ pub struct Eval {
     pub winner: Option<i8>,
 }
 
-pub struct EvaluationResult {
+pub struct ActionEvaluation {
     pub eval: Eval,
     pub winning_cells: Option<Vec<(usize, usize)>>,
 }
@@ -211,9 +213,9 @@ impl Environment<usize> for ConnectFour {
     }
     
     fn actions(&self) -> Vec<usize> {
-        self.col_heights.iter().enumerate().filter_map(|(i, h)| match *h < HEIGHT {
+        FIELDS.iter().filter_map(|i| match self.col_heights[*i] < HEIGHT {
             false => Option::None,
-            true => Option::Some(i)
+            true => Option::Some(*i)
         }).collect()
     }
     
@@ -254,8 +256,8 @@ impl ConnectFour {
     }
 }
 
-pub fn get_best_move(values: Option<Array2D<i8>>, current_player:i8, level:u8) -> Result<usize,String> {
-    let mut g = ConnectFour::new(values.map(|x| x.clone()), current_player);
+pub fn evaluate_state(values: Option<Array2D<i8>>, current_player:i8, level:u8) -> Result<StateEvaluation<usize>,String> {
+    let mut g = ConnectFour::new(values, current_player);
     match g.current_player {
         P1 => maximize(&mut g, level).ok_or("Player 1 has no legal move.".into()),
         P2 => minimize(&mut g, level).ok_or("Player 2 has no legal move.".into()),
@@ -263,10 +265,9 @@ pub fn get_best_move(values: Option<Array2D<i8>>, current_player:i8, level:u8) -
     }
 }
 
-pub fn evaluate_action(state:(Array2D<i8>, i8), action:usize) -> EvaluationResult {
-    let (values, current_player) = state;
+pub fn evaluate_action(values: Option<Array2D<i8>>, current_player:i8, action:usize) -> ActionEvaluation {
     let mut g = ConnectFour::new(
-        Option::Some(values),
+        values,
         current_player
     );
     g.last_action = Option::Some(action);
@@ -294,7 +295,7 @@ pub fn evaluate_action(state:(Array2D<i8>, i8), action:usize) -> EvaluationResul
         .or_else(|| check_(h_tup_seq!(row, action)))
         .or_else(|| check_(v_tup_seq!(row, action))).expect("no sequence of four found")
     });
-    EvaluationResult {
+    ActionEvaluation {
         eval: result,
         winning_cells
     }

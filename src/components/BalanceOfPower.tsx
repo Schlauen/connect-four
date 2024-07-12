@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { onUpdateGame } from "../Interface";
+import { onUpdateBalance } from "../Interface";
 
 const BalanceOfPower = () => {
   const [bop, setBop] = useState(0);
 
   useEffect(() => {
-    const unlisten = onUpdateGame(event => {
-        if (event.balance_of_power != null) {
-          console.log(event.balance_of_power);
-          setBop(event.balance_of_power);
+    const unlisten = onUpdateBalance(event => {
+        if (event.Balance.value != null) {
+          setBop(event.Balance.value);
         }
     });
 
