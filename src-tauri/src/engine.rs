@@ -1,6 +1,6 @@
-use std::{cmp::{max, min}, collections::{HashMap, VecDeque}, sync::RwLock, vec};
+use std::cmp::{max, min};
 use array2d::Array2D;
-use minimax::{Environment, minimize, maximize, MIN_SCORE, MAX_SCORE};
+use minimax::{Environment, minimize, maximize, MAX_SCORE};
 
 use crate::minimax::{self, StateEvaluation};
 
@@ -12,14 +12,6 @@ const P1:i8 = 1;
 const P2:i8 = -1;
 
 const FIELDS:[usize;WIDTH] = [3,2,4,1,5,0,6];
-
-// static mut STATES:RwLock<HashMap<i32, i8>> = RwLock::new(HashMap::new());
-
-macro_rules! toref {
-    ($vector:expr) => (
-        (0..$vector.len()).map(|i| &mut $vector[i] as *mut i8).collect()
-    );
-}
 
 macro_rules! gather {
     ($values:expr, $coord_vec:expr) => (
@@ -413,19 +405,6 @@ mod tests {
         assert_eq!(revert_col(&0), 3);
         assert_eq!(revert_col(&1), 0);
         assert_eq!(revert_col(&3), 1);
-    }
-
-    #[test]
-    fn test_macro() {
-        assert_eq!(check(1, &toref!(vec![0i8,0,1,1,1,0,1,1,-1,0,0,0,0])), 3);
-        assert_eq!(check(1, &toref!(vec![0i8,0,-1,1,1,1,1,1,-1,0,0,0,0])), 4);
-        assert_eq!(check(1, &toref!(vec![0i8,0,-1,-1,1,0,0,0,0])), 1);
-        assert_eq!(check(-1, &toref!(vec![0i8,-1,-1,0,0])), 2);
-        assert_eq!(check(-1, &toref!(vec![0i8,-1,-1,1,0])), 0);
-        assert_eq!(check(1, &toref!(vec![1i8,1,0,1,-1,1,0])), 3);
-        assert_eq!(check(1, &toref!(vec![1i8,0,0,0])), 1);
-        assert_eq!(check(1, &toref!(vec![-1i8,-1,1,0])), 0);
-        assert_eq!(check(1, &toref!(vec![0i8,0,-1,-1,1,0,0,0,0])), 1);
     }
 
     #[test]

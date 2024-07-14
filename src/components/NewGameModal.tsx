@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import "./Modal.css";
 import { AppState, OpenModal, useStore } from '../store';
 import { CellState, newGame } from '../Interface';

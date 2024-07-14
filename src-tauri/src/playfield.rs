@@ -1,9 +1,9 @@
-use std::{borrow::BorrowMut, collections::{VecDeque}};
+use std::{borrow::BorrowMut, collections::VecDeque};
 
 use array2d::Array2D;
 use serde::{Serialize, Deserialize};
 use tauri::Window;
-use crate::{engine::{self, ActionEvaluation, Eval, HEIGHT, TOTAL_FIELDS, WIDTH}, minimax::StateEvaluation};
+use crate::engine::{self, ActionEvaluation, Eval, HEIGHT, TOTAL_FIELDS, WIDTH};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[repr(i8)]
@@ -262,6 +262,8 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
+    use crate::minimax::StateEvaluation;
+
     use super::*;
 
     fn evaluate_state(game:&Game, player:CellState) -> Result<StateEvaluation<usize>, String> {
