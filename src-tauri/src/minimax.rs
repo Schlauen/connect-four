@@ -1,10 +1,14 @@
+use rand::seq::*;
+use std::iter::Iterator;
+use ordered_float::NotNan;
+
 pub const MAX_SCORE:f32 = 127.;
 pub const MIN_SCORE:f32 = -127.;
 const LAMBDA:f32 = 0.95;
 
 /// Implemented methods should in general not call each other.
 /// State should be persisted and invalidated if necessary
-pub trait Environment<T> {
+pub trait Environment<T:Copy> {
     /// Evaluate the current environment state
     fn evaluate(&mut self) -> f32;
     
@@ -31,63 +35,70 @@ pub struct StateEvaluation<T> {
     pub score:f32
 }
 
-pub fn minimize<T>(env:&mut impl Environment<T>, level:u8) -> Option<StateEvaluation<T>> {
+pub fn minimize<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool) -> Option<StateEvaluation<T>> {
     if level == 0 || env.is_finished() {
         return None;
     }
 
     let mut ops:u32 = 0;
     let mut min_value = MAX_SCORE;
-    let mut best_action = Option::None;
 
-    for action in env.actions() {
+    let iter = env.actions().into_iter().map(|action| {
         ops += 1;
         env.apply(&action);
         let value = max_(env, min_value, level - 1, &mut ops);
-        env.revert(&action);
-
         if value < min_value {
             min_value = value;
-            best_action = Option::Some(action);
         }
-    }
+        env.revert(&action);
+        (action, value)
+    });
+
+    let best_move = match randomized {
+        true => iter.collect::<Vec<(T,f32)>>().choose_weighted(&mut rand::thread_rng(), |i| -i.1).ok().map(|i| *i),
+        false => iter.min_by_key(|i| NotNan::new(i.1).unwrap())
+    };
 
     Option::Some(StateEvaluation {
-        best_action:best_action,
+        best_action:best_move.map(|i| i.0),
         ops_count:ops,
-        score:min_value
+        score:best_move.map_or(min_value, |i| i.1)
     })
 } 
 
-pub fn maximize<T>(env:&mut impl Environment<T>, level:u8) -> Option<StateEvaluation<T>> {
+pub fn maximize<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool) -> Option<StateEvaluation<T>> {
     if level == 0 || env.is_finished() {
         return None;
     }
 
     let mut ops:u32 = 0;
     let mut max_value = MIN_SCORE;
-    let mut best_action = Option::None;
     
-    for action in env.actions() {
+    let iter = env.actions().into_iter().map(|action| {
         ops += 1;
         env.apply(&action);
         let value = min_(env, max_value, level - 1, &mut ops);
-        env.revert(&action);
-
         if value > max_value {
             max_value = value;
-            best_action = Option::Some(action);
         }
-    }
+        env.revert(&action);
+        (action, value)
+    });
+
+    let best_move: Option<(T, f32)> = match randomized {
+        true => iter.collect::<Vec<(T,f32)>>().choose_weighted(&mut rand::thread_rng(), |i| i.1).ok().map(|i| *i),
+        false => iter.max_by_key(|i| NotNan::new(i.1).unwrap())
+    };
+
     Option::Some(StateEvaluation {
-        best_action:best_action,
+        best_action:best_move.map(|i| i.0),
         ops_count:ops,
-        score:max_value
+        score:best_move.map_or(max_value, |i| i.1)
     })
 } 
 
 
-fn min_<T>(env:&mut impl Environment<T>, a:f32, level:u8, ops:&mut u32) -> f32 {
+fn min_<T:Copy>(env:&mut impl Environment<T>, a:f32, level:u8, ops:&mut u32) -> f32 {
     if level == 0 || env.is_finished() {
         return env.evaluate();
     }
@@ -116,7 +127,7 @@ fn min_<T>(env:&mut impl Environment<T>, a:f32, level:u8, ops:&mut u32) -> f32 {
     min_value
 }
 
-fn max_<T>(env:&mut impl Environment<T>, b:f32, level:u8, ops:&mut u32) -> f32 {
+fn max_<T:Copy>(env:&mut impl Environment<T>, b:f32, level:u8, ops:&mut u32) -> f32 {
     if level == 0 || env.is_finished() {
         return env.evaluate();
     }
@@ -200,8 +211,8 @@ mod tests {
         assert_approx_eq!(f32, 9.5, max_(&mut game, MAX_SCORE, 10, &mut 0), ulps=2);
         assert_approx_eq!(f32, -4.75, min_(&mut game, MIN_SCORE, 10, &mut 0), ulps=2);
 
-        assert_eq!(Some(0.), maximize(&mut game, 10).map(|x| x.score));
-        assert_eq!(Some(1.), minimize(&mut game, 10).map(|x| x.score));
+        assert_approx_eq!(f32, 10., maximize(&mut game, 10, false).unwrap().score, ulps=2);
+        assert_approx_eq!(f32, -5., minimize(&mut game, 10, false).unwrap().score, ulps=2);
     }
 
     #[test]
@@ -227,7 +238,7 @@ mod tests {
             state:a,
         };
         assert_approx_eq!(f32, 9.025, min_(&mut game, MIN_SCORE, 10, &mut 0), ulps=2);
-        assert_eq!(Some(0.), minimize(&mut game, 10).map(|x| x.score));
+        assert_approx_eq!(f32, 9.5, minimize(&mut game, 10, false).unwrap().score);
     }
 
     #[test]
@@ -286,6 +297,6 @@ mod tests {
         };
 
         assert_approx_eq!(f32, 10.2885, max_(&mut game, MAX_SCORE, 10, &mut 0), ulps=2);
-        assert_eq!(Some(1.), maximize(&mut game, 10).map(|x| x.score));
+        assert_approx_eq!(f32, 10.83, maximize(&mut game, 10, false).unwrap().score);
     }
 }

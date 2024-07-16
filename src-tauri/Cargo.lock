@@ -355,6 +355,7 @@ dependencies = [
  "array2d",
  "float-cmp",
  "indextree",
+ "ordered-float",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -1700,6 +1701,15 @@ checksum = "2078c0039e6a54a0c42c28faa984e115fb4c2d5bf2208f77d1961002df8576f8"
 dependencies = [
  "pathdiff",
  "windows-sys 0.42.0",
+]
+
+[[package]]
+name = "ordered-float"
+version = "4.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19ff2cf528c6c03d9ed653d6c4ce1dc0582dc4af309790ad92f07c1cd551b0be"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

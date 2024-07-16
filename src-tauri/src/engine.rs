@@ -248,11 +248,11 @@ impl ConnectFour {
     }
 }
 
-pub fn evaluate_state(values: Option<Array2D<i8>>, current_player:i8, level:u8) -> Result<StateEvaluation<usize>,String> {
+pub fn evaluate_state(values: Option<Array2D<i8>>, current_player:i8, level:u8, randomized:bool) -> Result<StateEvaluation<usize>,String> {
     let mut g = ConnectFour::new(values, current_player);
     match g.current_player {
-        P1 => maximize(&mut g, level).ok_or("Player 1 has no legal move.".into()),
-        P2 => minimize(&mut g, level).ok_or("Player 2 has no legal move.".into()),
+        P1 => maximize(&mut g, level, randomized).ok_or("Player 1 has no legal move.".into()),
+        P2 => minimize(&mut g, level, randomized).ok_or("Player 2 has no legal move.".into()),
         _ => Err("unknown player".into())
     }
 }
@@ -296,6 +296,7 @@ pub fn evaluate_action(values: Option<Array2D<i8>>, current_player:i8, action:us
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Instant;
 
     #[test]
     fn test_macros() {
@@ -408,25 +409,16 @@ mod tests {
     }
 
     #[test]
-    fn test_benchmark_index() {
-        use std::time::Instant;
-        use rand::Rng;
-
-        let mut values = Array2D::filled_with(0, HEIGHT, WIDTH);
-        let mut rng = rand::thread_rng();
-        let vals: Vec<f32> = (0..1_000_000).map(|_| rng.gen_range(0.0..1.0)).collect();
-
-        let x1 = (1,2);
-        let x2 = (4,6);
+    fn benchmark() {
+        let mut p = ConnectFour::new(Option::None, P1);
+        p.apply(&3);
+        
         let now = Instant::now();
-        for i in vals {
-            if i < 0.5 {
-                values[x1] += 1;
-            } else {
-                values[x2] += 1;
-            }
-        }
+        let result = maximize(&mut p, 8, true).unwrap();
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        println!("{:?} ops in {:.2?} resulting in {:?} per op.", result.ops_count, elapsed, elapsed.div_f32(result.ops_count as f32));
+        // reference: 149764 ops in 105.09ms resulting in 702ns per op.
+        // random false: 149764 ops in 106.91ms resulting in 714ns per op.
+        // random true: 149764 ops in 106.79ms resulting in 713ns per op.
     }
 }
