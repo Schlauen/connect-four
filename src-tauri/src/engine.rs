@@ -414,11 +414,12 @@ mod tests {
         p.apply(&3);
         
         let now = Instant::now();
-        let result = maximize(&mut p, 8, true).unwrap();
+        let result = maximize(&mut p, 8, false).unwrap();
         let elapsed = now.elapsed();
         println!("{:?} ops in {:.2?} resulting in {:?} per op.", result.ops_count, elapsed, elapsed.div_f32(result.ops_count as f32));
         // reference: 149764 ops in 105.09ms resulting in 702ns per op.
         // random false: 149764 ops in 106.91ms resulting in 714ns per op.
         // random true: 149764 ops in 106.79ms resulting in 713ns per op.
+        // simplified code: 149764 ops in 106.41ms resulting in 711ns per op.
     }
 }

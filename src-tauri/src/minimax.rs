@@ -36,37 +36,14 @@ pub struct StateEvaluation<T> {
 }
 
 pub fn minimize<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool) -> Option<StateEvaluation<T>> {
-    if level == 0 || env.is_finished() {
-        return None;
-    }
-
-    let mut ops:u32 = 0;
-    let mut min_value = MAX_SCORE;
-
-    let iter = env.actions().into_iter().map(|action| {
-        ops += 1;
-        env.apply(&action);
-        let value = max_(env, min_value, level - 1, &mut ops);
-        if value < min_value {
-            min_value = value;
-        }
-        env.revert(&action);
-        (action, value)
-    });
-
-    let best_move = match randomized {
-        true => iter.collect::<Vec<(T,f32)>>().choose_weighted(&mut rand::thread_rng(), |i| -i.1).ok().map(|i| *i),
-        false => iter.min_by_key(|i| NotNan::new(i.1).unwrap())
-    };
-
-    Option::Some(StateEvaluation {
-        best_action:best_move.map(|i| i.0),
-        ops_count:ops,
-        score:best_move.map_or(min_value, |i| i.1)
-    })
+    return f(env, level, randomized, -1.0);
 } 
 
 pub fn maximize<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool) -> Option<StateEvaluation<T>> {
+    return f(env, level, randomized, 1.0);
+} 
+
+fn f<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool, player:f32) -> Option<StateEvaluation<T>> {
     if level == 0 || env.is_finished() {
         return None;
     }
@@ -77,7 +54,7 @@ pub fn maximize<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool)
     let iter = env.actions().into_iter().map(|action| {
         ops += 1;
         env.apply(&action);
-        let value = min_(env, max_value, level - 1, &mut ops);
+        let value = -ff(env, -max_value, level - 1, &mut ops, -player);
         if value > max_value {
             max_value = value;
         }
@@ -93,64 +70,33 @@ pub fn maximize<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool)
     Option::Some(StateEvaluation {
         best_action:best_move.map(|i| i.0),
         ops_count:ops,
-        score:best_move.map_or(max_value, |i| i.1)
+        score:player*best_move.map_or(MIN_SCORE, |i| i.1)
     })
-} 
-
-
-fn min_<T:Copy>(env:&mut impl Environment<T>, a:f32, level:u8, ops:&mut u32) -> f32 {
-    if level == 0 || env.is_finished() {
-        return env.evaluate();
-    }
-
-    env.swap_players();
-
-    // min can certainly achieve this value or better (less)
-    let mut min_value = MAX_SCORE;
-    
-    for action in env.actions() {
-        *ops += 1;
-        env.apply(&action);
-        let value = LAMBDA*max_(env, min_value, level - 1, ops);
-        env.revert(&action);
-
-        if value < min_value {
-            min_value = value; 
-            if min_value <= a {
-                env.swap_players();
-                return min_value;
-            }
-        }
-    }
-
-    env.swap_players();
-    min_value
 }
 
-fn max_<T:Copy>(env:&mut impl Environment<T>, b:f32, level:u8, ops:&mut u32) -> f32 {
+fn ff<T:Copy>(env:&mut impl Environment<T>, b:f32, level:u8, ops:&mut u32, player:f32) -> f32 {
     if level == 0 || env.is_finished() {
-        return env.evaluate();
+         return player*env.evaluate();
     }
 
     env.swap_players();
     
-    // max can certainly achieve this value or better (more)
+    // current player can achieve at least this score (or higher)
     let mut max_value = MIN_SCORE;
     
     for action in env.actions() {
         *ops += 1;
         env.apply(&action);
-        let value = LAMBDA*min_(env, max_value, level - 1, ops);
+        let value = -LAMBDA*ff(env, -max_value, level - 1, ops, -player);
         env.revert(&action);
 
         if value > max_value {
             max_value = value;
             if max_value >= b {
-                // b is the value the minimizer can get for sure
-                // if the maximizer finds a higher value, it does not neet to continue its search,
-                // since minimizer will never allow the current situation
+                // found a better move than the opponent's best move.
+                // Hence, the opponent won't let the current situation happen and branch can be pruned
                 env.swap_players();
-                return max_value;
+                return MAX_SCORE;
             }
         }
     }
@@ -208,8 +154,11 @@ mod tests {
             state:root,
         };
 
-        assert_approx_eq!(f32, 9.5, max_(&mut game, MAX_SCORE, 10, &mut 0), ulps=2);
-        assert_approx_eq!(f32, -4.75, min_(&mut game, MIN_SCORE, 10, &mut 0), ulps=2);
+        // maximizer
+        assert_approx_eq!(f32, 9.5, ff(&mut game, MAX_SCORE, 10, &mut 0, 1.0), ulps=2);
+
+        // minimizer
+        assert_approx_eq!(f32, -4.75, -ff(&mut game, MAX_SCORE, 10, &mut 0, -1.0), ulps=2);
 
         assert_approx_eq!(f32, 10., maximize(&mut game, 10, false).unwrap().score, ulps=2);
         assert_approx_eq!(f32, -5., minimize(&mut game, 10, false).unwrap().score, ulps=2);
@@ -237,7 +186,14 @@ mod tests {
             arena:arena,
             state:a,
         };
-        assert_approx_eq!(f32, 9.025, min_(&mut game, MIN_SCORE, 10, &mut 0), ulps=2);
+
+        // maximizer
+        assert_approx_eq!(f32, -4.5125, ff(&mut game, MAX_SCORE, 10, &mut 0, 1.0), ulps=2);
+
+        // minimizer
+        assert_approx_eq!(f32, 9.025, -ff(&mut game, MAX_SCORE, 10, &mut 0, -1.0), ulps=2);
+
+        assert_approx_eq!(f32, -4.75, maximize(&mut game, 10, false).unwrap().score);
         assert_approx_eq!(f32, 9.5, minimize(&mut game, 10, false).unwrap().score);
     }
 
@@ -296,7 +252,9 @@ mod tests {
             state:root,
         };
 
-        assert_approx_eq!(f32, 10.2885, max_(&mut game, MAX_SCORE, 10, &mut 0), ulps=2);
-        assert_approx_eq!(f32, 10.83, maximize(&mut game, 10, false).unwrap().score);
+        assert_approx_eq!(f32, 10.2885, ff(&mut game, MAX_SCORE, 10, &mut 0, 1.0), ulps=2);
+        let res = maximize(&mut game, 10, false).unwrap();
+        println!("{:?}", res.ops_count);
+        assert_approx_eq!(f32, 10.83, res.score);
     }
 }
