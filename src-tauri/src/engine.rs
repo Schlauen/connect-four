@@ -421,5 +421,7 @@ mod tests {
         // random false: 149764 ops in 106.91ms resulting in 714ns per op.
         // random true: 149764 ops in 106.79ms resulting in 713ns per op.
         // simplified code: 149764 ops in 106.41ms resulting in 711ns per op.
+        // with move ordering: 60462 ops in 285.02ms resulting in 4.714µs per op.
+
     }
 }

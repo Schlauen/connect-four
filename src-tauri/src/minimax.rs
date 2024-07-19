@@ -51,7 +51,7 @@ fn f<T:Copy>(env:&mut impl Environment<T>, level:u8, randomized:bool, player:f32
     let mut ops:u32 = 0;
     let mut max_value = MIN_SCORE;
     
-    let iter = env.actions().into_iter().map(|action| {
+    let iter = ordered_actions(env, player).into_iter().map(|action| {
         ops += 1;
         env.apply(&action);
         let value = -ff(env, -max_value, level - 1, &mut ops, -player);
@@ -83,8 +83,8 @@ fn ff<T:Copy>(env:&mut impl Environment<T>, b:f32, level:u8, ops:&mut u32, playe
     
     // current player can achieve at least this score (or higher)
     let mut max_value = MIN_SCORE;
-    
-    for action in env.actions() {
+
+    for action in ordered_actions(env, player) {
         *ops += 1;
         env.apply(&action);
         let value = -LAMBDA*ff(env, -max_value, level - 1, ops, -player);
@@ -103,6 +103,17 @@ fn ff<T:Copy>(env:&mut impl Environment<T>, b:f32, level:u8, ops:&mut u32, playe
 
     env.swap_players();
     max_value
+}
+
+fn ordered_actions<T:Copy>(env:&mut impl Environment<T>, player:f32) -> Vec<T> {
+    let mut actions = env.actions();
+    actions.sort_by_key(|action| {
+        env.apply(&action);
+        let value = -player*env.evaluate();
+        env.revert(&action);
+        NotNan::new(value).unwrap()
+    });
+    actions
 }
 
 #[cfg(test)]
