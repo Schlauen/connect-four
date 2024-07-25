@@ -1,5 +1,5 @@
 use rand::{seq::*, Rng};
-use std::{cmp::min, iter::Iterator, time::Instant};
+use std::{iter::Iterator, time::Instant};
 use ordered_float::NotNan;
 
 pub const MAX_SCORE:f32 = 127.;
