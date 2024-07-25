@@ -12,6 +12,7 @@ const P1:i8 = 1;
 const P2:i8 = -1;
 
 const FIELDS:[usize;WIDTH] = [3,2,4,1,5,0,6];
+const COL_BONUS:[f32;WIDTH] = [0., 0.5, 1.0, 1.5, 1.0, 0.5, 0.];
 
 macro_rules! gather {
     ($values:expr, $coord_vec:expr) => (
@@ -144,6 +145,7 @@ impl ConnectFour {
         if len > 1 {
             total_score -= (len - 1) as f32;
         }
+        total_score += COL_BONUS[col];
         total_score *= val as f32;
         Eval {
             score: total_score,
@@ -169,7 +171,7 @@ impl ConnectFour {
     }
 }
 
-impl Environment<usize> for ConnectFour {
+impl Environment for ConnectFour {
     fn evaluate(&mut self) -> f32 {
         self.eval().score
     }
@@ -248,11 +250,11 @@ impl ConnectFour {
     }
 }
 
-pub fn evaluate_state(values: Option<Array2D<i8>>, current_player:i8, level:u8, randomized:bool) -> Result<StateEvaluation<usize>,String> {
+pub fn evaluate_state(values: Option<Array2D<i8>>, current_player:i8, level:u8, randomized:bool) -> Result<StateEvaluation,String> {
     let mut g = ConnectFour::new(values, current_player);
     match g.current_player {
-        P1 => maximize(&mut g, level, randomized).ok_or("Player 1 has no legal move.".into()),
-        P2 => minimize(&mut g, level, randomized).ok_or("Player 2 has no legal move.".into()),
+        P1 => maximize(&mut g, 100*(level as u128), randomized).ok_or("Player 1 has no legal move.".into()),
+        P2 => minimize(&mut g, 100*(level as u128), randomized).ok_or("Player 2 has no legal move.".into()),
         _ => Err("unknown player".into())
     }
 }
@@ -295,7 +297,7 @@ pub fn evaluate_action(values: Option<Array2D<i8>>, current_player:i8, action:us
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::*; 
     use std::time::Instant;
 
     #[test]
@@ -361,16 +363,16 @@ mod tests {
 
         assert_eq!(play_col(&0), 1.);
         assert_eq!(play_col(&0), -1.);
-        assert_eq!(play_col(&1), 2.);
-        assert_eq!(play_col(&3), -1.);
-        assert_eq!(play_col(&4), 1.);
+        assert_eq!(play_col(&1), 2.5);
+        assert_eq!(play_col(&3), -2.5);
+        assert_eq!(play_col(&4), 2.);
         assert_eq!(play_col(&0), -2.);
-        assert_eq!(play_col(&3), 2.);
+        assert_eq!(play_col(&3), 3.5);
         assert_eq!(play_col(&0), -4.);
         assert_eq!(play_col(&0), 2.);
-        assert_eq!(play_col(&4), -2.);
-        assert_eq!(play_col(&4), 2.);
-        assert_eq!(play_col(&5), -2.);
+        assert_eq!(play_col(&4), -3.);
+        assert_eq!(play_col(&4), 3.);
+        assert_eq!(play_col(&5), -2.5);
     }
 
     #[test]
@@ -422,6 +424,5 @@ mod tests {
         // random true: 149764 ops in 106.79ms resulting in 713ns per op.
         // simplified code: 149764 ops in 106.41ms resulting in 711ns per op.
         // with move ordering: 60462 ops in 285.02ms resulting in 4.714µs per op.
-
     }
 }

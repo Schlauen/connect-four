@@ -267,7 +267,7 @@ mod tests {
 
     use super::*;
 
-    fn evaluate_state(game:&Game, player:CellState) -> Result<StateEvaluation<usize>, String> {
+    fn evaluate_state(game:&Game, player:CellState) -> Result<StateEvaluation, String> {
         engine::evaluate_state(
             Option::Some(game.map_values()),
             player as i8,
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_play() {
-        let mut g = Game::new(3);
+        let mut g = Game::new(1);
         let (x,o) = (CellState::P1, CellState::P2);
         g.play_col(3, x, None).unwrap();
         g.play_col(5, o, None).unwrap();
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_play_2() {
-        let mut g = Game::new(8);
+        let mut g = Game::new(1);
         let (x,o) = (CellState::P1, CellState::P2);
         g.play_col(2, x, None).unwrap();
         g.play_col(6, o, None).unwrap();
@@ -319,21 +319,18 @@ mod tests {
         g.play_col(4, x, None).unwrap();
 
         let result = g.evaluate();
-        assert_eq!(result.eval.winner.unwrap(), x as i8);
-        
-        //g.play_col(4, player, window)
-        //g.play_col(1, x, None).unwrap();    
+        assert_eq!(result.eval.winner.unwrap(), x as i8); 
     }
 
     #[test]
     fn test_play_3() {
-        let mut g = Game::new(8);
+        let mut g = Game::new(1);
         let (x,o) = (CellState::P1, CellState::P2);
         g.play_col(1, x, None).unwrap();
         g.play_col(6, o, None).unwrap();
         g.play_col(2, x, None).unwrap();
 
-        assert_eq!(evaluate_state(&g, o).map(|r| r.best_action).unwrap().unwrap(), 0);
+        assert_eq!(evaluate_state(&g, o).map(|r| r.best_action).unwrap().unwrap(), 3);
 
         g.play_col(6, o, None).unwrap();
 
