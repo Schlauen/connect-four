@@ -1,5 +1,5 @@
-use rand::seq::*;
-use std::{iter::Iterator, time::Instant};
+use rand::{seq::*, Rng};
+use std::{cmp::min, iter::Iterator, time::Instant};
 use ordered_float::NotNan;
 
 pub const MAX_SCORE:f32 = 127.;
@@ -89,12 +89,17 @@ fn eval(env:&mut impl Environment, time_limit_millis:u128, randomized:bool, play
         });
         actions.sort_by_key(|v| NotNan::new(-v.score).unwrap());
         level += 1;
-
+        
         unexploited = !all_exploited;
     }
 
     let best_move: Option<ActionEvaluation> = match randomized {
-        true => actions.choose_weighted(&mut rand::thread_rng(),|i| i.score).ok().map(|i| *i),
+        true => {
+            let mut rng = rand::thread_rng();
+            actions.into_iter().max_by_key(|i| {
+                NotNan::new(i.score * rng.gen_range(0.8..1.2)).unwrap()
+            })
+        },
         false => actions.into_iter().max_by_key(|i| NotNan::new(i.score).unwrap())
     };
 

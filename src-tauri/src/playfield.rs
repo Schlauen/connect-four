@@ -230,7 +230,7 @@ impl Game {
         }, w));
         
         
-        let res = engine::evaluate_state(Some(self.map_values()), player as i8, self.level, false)?;
+        let res = engine::evaluate_state(Some(self.map_values()), player as i8, self.level, true)?;
         let best_action = res.best_action.ok_or("no result")?;
         self.play_col(best_action, player, window)?;
 
