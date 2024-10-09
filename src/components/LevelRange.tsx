@@ -1,4 +1,3 @@
-import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useStore } from '../store';
 
 interface Props {
