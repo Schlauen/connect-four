@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api";
+import { event, invoke } from "@tauri-apps/api";
 import { UnlistenFn, listen } from "@tauri-apps/api/event";
 
 export interface Update {
@@ -67,13 +67,16 @@ export function newGame(
 
 
 export function onUpdateCell(row:number, col:number, onTrigger: (event:Update) => void): Promise<UnlistenFn> {
+    console.log('update cell', event);
     return listen<Update>('updateCell-' + row + '-' + col, event => onTrigger(event.payload));
 }
 
 export function onUpdateState(onTrigger: (event:Update) => void): Promise<UnlistenFn> {
+    console.log('update state', event);
     return listen<Update>('updateState', event => onTrigger(event.payload));
 }
 
 export function onUpdateBalance(onTrigger: (event:Update) => void): Promise<UnlistenFn> {
+    console.log('update balance', event);
     return listen<Update>('updateBalance', event => onTrigger(event.payload));
 }

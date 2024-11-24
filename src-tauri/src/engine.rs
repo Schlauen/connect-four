@@ -1,8 +1,8 @@
 use std::cmp::{max, min};
 use array2d::Array2D;
-use minimax::{Environment, minimize, maximize, MAX_SCORE};
+use minimax::{Environment, minimize, maximize};
 
-use crate::minimax::{self, StateEvaluation};
+use crate::minimax::{self, Config, StateEvaluation};
 
 pub const WIDTH:usize = 7;
 pub const HEIGHT:usize = 6;
@@ -13,6 +13,10 @@ const P2:i8 = -1;
 
 const FIELDS:[usize;WIDTH] = [3,2,4,1,5,0,6];
 const COL_BONUS:[f32;WIDTH] = [0., 0.5, 1.0, 1.5, 1.0, 0.5, 0.];
+
+const MAX_SCORE:f32 = 127.;
+const MIN_SCORE:f32 = -127.;
+const EPSILON:f32 = 0.95;
 
 macro_rules! gather {
     ($values:expr, $coord_vec:expr) => (
@@ -173,7 +177,7 @@ impl ConnectFour {
 
 impl Environment for ConnectFour {
     fn evaluate(&mut self) -> f32 {
-        self.eval().score
+        (self.current_player as f32) * self.eval().score
     }
  
     fn apply(&mut self, action:&usize) {        
@@ -252,9 +256,16 @@ impl ConnectFour {
 
 pub fn evaluate_state(values: Option<Array2D<i8>>, current_player:i8, level:u8, randomized:bool) -> Result<StateEvaluation,String> {
     let mut g = ConnectFour::new(values, current_player);
+    let config = Config::new(
+        Some(100*(level as u128)),
+        None,
+        randomized,
+        MIN_SCORE,
+        EPSILON
+    );
     match g.current_player {
-        P1 => maximize(&mut g, 100*(level as u128), randomized).ok_or("Player 1 has no legal move.".into()),
-        P2 => minimize(&mut g, 100*(level as u128), randomized).ok_or("Player 2 has no legal move.".into()),
+        P1 => maximize(&mut g, &config).ok_or("Player 1 has no legal move.".into()),
+        P2 => minimize(&mut g, &config).ok_or("Player 2 has no legal move.".into()),
         _ => Err("unknown player".into())
     }
 }
@@ -352,27 +363,28 @@ mod tests {
         println!("Elapsed: {:.2?}", elapsed);
     }
 
+    fn play_col(p:&mut ConnectFour, col:&usize) -> f32 {
+        p.apply(col);
+        p.swap_players();
+        p.evaluate()
+    }
+
     #[test]
     fn test_2() {
         let mut p = ConnectFour::new(Option::None, P1);
-        let mut play_col = |col|  {
-            p.apply(col);
-            p.swap_players();
-            p.evaluate()
-        };
 
-        assert_eq!(play_col(&0), 1.);
-        assert_eq!(play_col(&0), -1.);
-        assert_eq!(play_col(&1), 2.5);
-        assert_eq!(play_col(&3), -2.5);
-        assert_eq!(play_col(&4), 2.);
-        assert_eq!(play_col(&0), -2.);
-        assert_eq!(play_col(&3), 3.5);
-        assert_eq!(play_col(&0), -4.);
-        assert_eq!(play_col(&0), 2.);
-        assert_eq!(play_col(&4), -3.);
-        assert_eq!(play_col(&4), 3.);
-        assert_eq!(play_col(&5), -2.5);
+        assert_eq!(play_col(&mut p, &0), 1.);
+        assert_eq!(play_col(&mut p, &0), -1.);
+        assert_eq!(play_col(&mut p, &1), 2.5);
+        assert_eq!(play_col(&mut p, &3), -2.5);
+        assert_eq!(play_col(&mut p, &4), 2.);
+        assert_eq!(play_col(&mut p, &0), -2.);
+        assert_eq!(play_col(&mut p, &3), 3.5);
+        assert_eq!(play_col(&mut p, &0), -4.);
+        assert_eq!(play_col(&mut p, &0), 2.);
+        assert_eq!(play_col(&mut p, &4), -3.);
+        assert_eq!(play_col(&mut p, &4), 3.);
+        assert_eq!(play_col(&mut p, &5), -2.5);
     }
 
     #[test]
@@ -411,12 +423,64 @@ mod tests {
     }
 
     #[test]
+    fn test_case_1() {
+        let mut p = ConnectFour::new(Option::None, P1);
+        
+        let config = Config::new(
+            None,
+            Some(5),
+            false,
+            MIN_SCORE,
+            EPSILON
+        );
+
+        play_col(&mut p, &3);
+        play_col(&mut p, &3);
+        play_col(&mut p, &4);
+        play_col(&mut p, &2);
+        play_col(&mut p, &6);
+        let result = maximize(&mut p, &config).unwrap();
+        println!("{:?}", result.ops_count);
+        assert_eq!(5, result.best_action.unwrap())
+    }
+
+    #[test]
+    fn test_case_2() {
+        let mut p = ConnectFour::new(Option::None, P1);
+        
+        let config = Config::new(
+            None,
+            Some(5),
+            false,
+            MIN_SCORE,
+            EPSILON
+        );
+
+        play_col(&mut p, &3);
+        play_col(&mut p, &3);
+        play_col(&mut p, &4);
+        play_col(&mut p, &2);
+        play_col(&mut p, &6);
+        let result = maximize(&mut p, &config).unwrap();
+        println!("{:?}", result.ops_count);
+        assert_eq!(5, result.best_action.unwrap())
+    }
+
+    #[test]
     fn benchmark() {
         let mut p = ConnectFour::new(Option::None, P1);
         p.apply(&3);
         
+        let config = Config::new(
+            None,
+            Some(5),
+            false,
+            MIN_SCORE,
+            EPSILON
+        );
+
         let now = Instant::now();
-        let result = maximize(&mut p, 8, false).unwrap();
+        let result = maximize(&mut p, &config).unwrap();
         let elapsed = now.elapsed();
         println!("{:?} ops in {:.2?} resulting in {:?} per op.", result.ops_count, elapsed, elapsed.div_f32(result.ops_count as f32));
         // reference: 149764 ops in 105.09ms resulting in 702ns per op.

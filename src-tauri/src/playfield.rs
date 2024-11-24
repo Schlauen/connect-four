@@ -49,6 +49,7 @@ fn emit_update(event:Update, window:&Window) -> Result<(), String> {
 
 impl Cell {
     fn emit_update(&self, window:Option<&Window>) {
+        println!("update cell");
         window.map(|w| emit_update( 
             Update::Cell { 
                 row: self.row as u8,
