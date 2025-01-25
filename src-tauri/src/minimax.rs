@@ -180,6 +180,86 @@ fn eval(env:&mut impl Environment, config:&Config, player:f32) -> Option<StateEv
     })
 }
 
+fn deepen_head(
+    env:&mut impl Environment, 
+    alpha:f32,
+    beta:f32,
+    level:u8,
+    player:f32,
+    config:&Config
+) -> (f32, bool, u128) {
+    if level == 0 {
+        return (env.evaluate(), env.is_finished(), 1);
+    }
+
+    if env.is_finished() {
+        return (env.evaluate(), true, 1);
+    }
+
+    env.swap_players();
+
+    let mut all_exploited = true;
+    let mut ops_count = 0;
+    let mut alpha_ = alpha;
+    let mut beta_ = beta;
+    let actions = env.actions();
+    let best_eval = match player.is_sign_positive() {
+        true => {
+            let mut best_eval = config.min_score;
+            for action in actions {
+                env.apply(&action);
+                let (eval, exploited, cnt) = deepen(env, alpha_.clone(), beta_.clone(), level - 1, -player, config);
+                all_exploited &= exploited;
+                ops_count += cnt;
+
+                env.revert(&action);
+
+                if eval > best_eval {
+                    best_eval = eval;
+                }
+
+                if eval > alpha_ {
+                    alpha_ = eval;
+                }
+
+                if beta_ <= alpha_ {
+                    println!("player 1 breaks at {:?}", eval);
+                    break;
+                }
+            }
+            best_eval
+        },
+        false => {
+            let mut best_eval = config.max_score;
+            for action in actions {
+                env.apply(&action);
+                let (eval, exploited, cnt) = deepen(env, alpha_, beta_, level - 1, -player, config);
+                all_exploited &= exploited;
+                ops_count += cnt;
+
+                env.revert(&action);
+
+                if eval < best_eval {
+                    best_eval = eval;
+                }
+
+                if eval < beta_ {
+                    beta_ = eval;
+                }
+
+                if beta_ <= alpha_ {
+                    println!("player -1 breaks at {:?}", eval);
+                    break;
+                }
+            }
+            best_eval
+        }
+    };
+
+    env.swap_players();
+    (config.epsilon*best_eval, all_exploited, ops_count)
+}
+
 fn deepen(
     env:&mut impl Environment, 
     alpha:f32,
@@ -203,6 +283,12 @@ fn deepen(
     let mut alpha_ = alpha;
     let mut beta_ = beta;
     let actions = env.actions();
+
+    let mut best_eval = match player.is_sign_positive() {
+        true => config.min_score,
+        false => config.max_score,
+    }
+
     let best_eval = match player.is_sign_positive() {
         true => {
             let mut best_eval = config.min_score;
@@ -369,10 +455,10 @@ mod tests {
     fn case_3() {
         let mut arena = Arena::new();
 
-        //           a                       b
+        //           a 3                     b 12
         //     +-----+-----+           +-----+-----+
         //     |           |           |           |
-        //     aa          ab          ba          bb
+        //     aa 3        ab 15       ba 12       bb 13
         // +---+---+   +---+---+   +---+---+   +---+---+
         // |   |   |   |   |   |   |   |   |   |   |   |
         // 1  -5   3  -6   15  ?   10  12  3   13  ?   ? 
@@ -415,9 +501,16 @@ mod tests {
         };
 
         let config = Config {epsilon:1.0, ..Default::default() };
-        let res = maximize(&mut game, &config).unwrap();
-        assert_approx_eq!(f32, 12.0, res.score);
-        assert_eq!(14, res.ops_count);
+
+        let (score, all_exploited, ops_count) = deepen(&mut game, config.min_score.clone(), 
+        config.max_score.clone(), 3, 1., &config);
+        assert_approx_eq!(f32, 12., score);
+        assert_eq!(9, ops_count);
+        assert!(all_exploited);
+
+        // let res = maximize(&mut game, &config).unwrap();
+        // assert_approx_eq!(f32, 12.0, res.score);
+        // assert_eq!(14, res.ops_count);
     }
 
     #[test]
